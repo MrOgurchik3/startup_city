@@ -22,7 +22,7 @@ import {
   INVESTOR_VC_INDEX,
   type ArchetypeMeta,
 } from './cityArchetypes';
-import { loadArchetypeGeometry } from './glbBuildingLoader';
+import { loadArchetypeAsset } from './glbBuildingLoader';
 
 interface BuildingsProps {
   startups: Startup[];
@@ -53,29 +53,32 @@ function ShapeGroup({
   const selectStartup = useAppStore((s) => s.selectStartup);
   const selection = useAppStore((s) => s.selection);
 
-  // Start synchronously with the procedural geometry so the city renders
-  // immediately, then asynchronously upgrade to the GLB if one is provided.
+  // Start synchronously with the procedural geometry + window shader so the
+  // city renders immediately. Once the GLB resolves, swap to the GLB's baked
+  // geometry AND its baked material (which has per-instance overrides patched
+  // in by the loader). Procedural fallback keeps the window shader.
   // (`archetype` is stable per ShapeGroup — each archetype gets its own keyed
   // instance from the parent, so the procedural fallback only computes once.)
   const proceduralGeometry = useMemo(() => archetype.builder(), [archetype]);
+  const proceduralMaterial = useMemo(() => buildShaderMaterial(), []);
   const [geometry, setGeometry] = useState<THREE.BufferGeometry>(proceduralGeometry);
+  const [material, setMaterial] = useState<THREE.Material>(proceduralMaterial);
 
   useEffect(() => {
     if (!archetype.glbAsset) return;
     let cancelled = false;
-    loadArchetypeGeometry({
+    loadArchetypeAsset({
       glbAsset: archetype.glbAsset,
       fallback: archetype.builder,
-    }).then((geom) => {
+    }).then((asset) => {
       if (cancelled) return;
-      if (geom !== proceduralGeometry) setGeometry(geom);
+      if (asset.geometry !== proceduralGeometry) setGeometry(asset.geometry);
+      if (asset.material) setMaterial(asset.material);
     });
     return () => {
       cancelled = true;
     };
   }, [archetype, proceduralGeometry]);
-
-  const material = useMemo(() => buildShaderMaterial(), []);
 
   const podiumGeometry = useMemo(() => {
     const g = new THREE.BoxGeometry(1, 1, 1);
@@ -121,6 +124,16 @@ function ShapeGroup({
     const podium = podiumRef.current;
     const matrix = new THREE.Matrix4();
     const podiumM = new THREE.Matrix4();
+    const tmpPos = new THREE.Vector3();
+    const tmpQuat = new THREE.Quaternion();
+    const tmpScl = new THREE.Vector3();
+    // Stable per-startup yaw (4 cardinal rotations) so the city reads less
+    // grid-locked without breaking street alignment.
+    const yawForId = (id: string): number => {
+      let h = 0;
+      for (let i = 0; i < id.length; i += 1) h = (h * 31 + id.charCodeAt(i)) | 0;
+      return ((h >>> 0) % 4) * (Math.PI / 2);
+    };
     const startupFlopped = new THREE.Color(CITY_PALETTE.startupFlopped);
     const invVc = new THREE.Color(CITY_PALETTE.investorVc);
     const invAngel = new THREE.Color(CITY_PALETTE.investorAngel);
@@ -137,8 +150,10 @@ function ShapeGroup({
       const h = cityBuildingHeight(s);
       const baseY = cityBuildingBaseY(s);
 
-      matrix.makeScale(w * mx, h * my, w * mz);
-      matrix.setPosition(x, baseY, z);
+      tmpPos.set(x, baseY, z);
+      tmpQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawForId(s.id));
+      tmpScl.set(w * mx, h * my, w * mz);
+      matrix.compose(tmpPos, tmpQuat, tmpScl);
       mesh.setMatrixAt(i, matrix);
 
       if (podium && archetype.isInvestor) {
@@ -181,7 +196,7 @@ function ShapeGroup({
     geom.setAttribute('instanceSelected', new THREE.InstancedBufferAttribute(buffers.selected, 1));
     geom.setAttribute('instanceOutcomeMute', new THREE.InstancedBufferAttribute(buffers.outcomeMute, 1));
     geom.setAttribute('instanceOutcomeAccent', new THREE.InstancedBufferAttribute(buffers.outcomeAccent, 1));
-  }, [startups, positions, buffers, selection, archetype]);
+  }, [startups, positions, buffers, selection, archetype, geometry, material]);
 
   const handlePointerOver = (e: ThreeEvent<PointerEvent>) => {
     if (e.instanceId == null) return;

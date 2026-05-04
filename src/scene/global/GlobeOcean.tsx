@@ -80,7 +80,11 @@ export function GlobeOcean() {
         renderOrder={0}
       >
         <sphereGeometry args={[R_GLOBE, 128, 96, -Math.PI / 2]} />
+        {/* Key forces a fresh material once the texture transitions null→loaded.
+            Without it, the shader was compiled without `map` sampling on first
+            mount, and setting material.map afterwards has no visible effect. */}
         <meshStandardMaterial
+          key={earthTex ? 'with-tex' : 'no-tex'}
           map={earthTex ?? null}
           color={earthTex ? '#ffffff' : OCEAN_COLOR}
           emissive={OCEAN_EMISSIVE}

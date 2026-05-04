@@ -3,28 +3,30 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /**
- * GLB → archetype geometry loader.
+ * GLB → archetype loader.
  *
  * Each city archetype optionally points at a GLB file in `public/buildings/`.
- * If found, all meshes inside are baked (worldMatrix applied), normalized
- * (recenter footprint to (0,0,0), base at y=0, fit unit-height + ≤1 footprint),
- * and merged into a single BufferGeometry suitable for InstancedMesh.
+ * Loaded GLBs preserve their baked material (so the artist's textures /
+ * window detail show through), and gain a small `onBeforeCompile` patch that
+ * applies per-instance overrides for outcome-mute, IPO/M&A accent, and
+ * selection highlight.
  *
- * If the GLB is missing or fails to load/parse, the caller's procedural
- * fallback is used — the city renders immediately with procedural archetypes
- * and progressively upgrades as GLBs become available.
+ * Missing or broken GLBs fall back to the procedural builder + the existing
+ * window shader, so the city always renders something.
  */
 
 export const BUILDINGS_BASE = '/buildings';
 
 const loader = new GLTFLoader();
 
-const cache = new Map<string, Promise<THREE.BufferGeometry>>();
+export interface ArchetypeAsset {
+  geometry: THREE.BufferGeometry;
+  /** When non-null, use this material instead of the procedural window shader. */
+  material: THREE.Material | null;
+}
 
-/**
- * Promote a geometry's attribute set to a common (position, normal, uv) so that
- * mergeGeometries can combine meshes with mismatched attribute layouts.
- */
+const cache = new Map<string, Promise<ArchetypeAsset>>();
+
 function ensureCommonAttributes(geom: THREE.BufferGeometry): THREE.BufferGeometry {
   const out = new THREE.BufferGeometry();
   out.setAttribute('position', geom.attributes.position);
@@ -44,41 +46,28 @@ function ensureCommonAttributes(geom: THREE.BufferGeometry): THREE.BufferGeometr
   return out;
 }
 
-/** Cylindrical UV projection — gives the window-grid shader something usable on
- *  any merged GLB regardless of its original UV layout. u wraps around the
- *  building's vertical axis; v goes 0 (base) → 1 (top). */
-function projectCylindricalUVs(geom: THREE.BufferGeometry): void {
-  const pos = geom.attributes.position;
-  const count = pos.count;
-  const uvs = new Float32Array(count * 2);
-  geom.computeBoundingBox();
-  const bb = geom.boundingBox;
-  if (!bb) return;
-  const minY = bb.min.y;
-  const spanY = Math.max(bb.max.y - minY, 1e-6);
-  for (let i = 0; i < count; i += 1) {
-    const x = pos.getX(i);
-    const y = pos.getY(i);
-    const z = pos.getZ(i);
-    const u = 0.5 + Math.atan2(z, x) / (Math.PI * 2);
-    const v = (y - minY) / spanY;
-    uvs[i * 2] = u;
-    uvs[i * 2 + 1] = v;
-  }
-  geom.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+interface BakedScene {
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material | null;
 }
 
-/** Walk a GLTF scene, bake transforms, return one merged geometry normalized to
- *  the archetype convention (footprint within ±0.5, base y=0, height 1). */
-function bakeGltfToArchetypeGeometry(gltf: { scene: THREE.Object3D }): THREE.BufferGeometry {
+function bakeGltf(gltf: { scene: THREE.Object3D }): BakedScene {
   gltf.scene.updateMatrixWorld(true);
   const parts: THREE.BufferGeometry[] = [];
+  let firstMaterial: THREE.Material | null = null;
+
   gltf.scene.traverse((node) => {
     const mesh = node as THREE.Mesh;
     if (!mesh.isMesh || !mesh.geometry) return;
     const baked = mesh.geometry.clone();
     baked.applyMatrix4(mesh.matrixWorld);
     parts.push(ensureCommonAttributes(baked));
+    if (!firstMaterial) {
+      // Kenney pack uses one material per building (a colormap texture atlas);
+      // taking the first found preserves the baked window/wall colours.
+      const m = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+      if (m) firstMaterial = m;
+    }
   });
   if (parts.length === 0) throw new Error('GLB scene contains no meshes');
 
@@ -92,20 +81,91 @@ function bakeGltfToArchetypeGeometry(gltf: { scene: THREE.Object3D }): THREE.Buf
     const sx = Math.max(bb.max.x - bb.min.x, 1e-6);
     const sy = Math.max(bb.max.y - bb.min.y, 1e-6);
     const sz = Math.max(bb.max.z - bb.min.z, 1e-6);
-    // Recenter footprint at origin, base at y=0.
     merged.translate(-(bb.min.x + sx / 2), -bb.min.y, -(bb.min.z + sz / 2));
-    // Uniform XZ scale to fit largest footprint extent into [-0.5, 0.5];
-    // independent Y scale so height becomes 1.
     const scaleXZ = 1.0 / Math.max(sx, sz);
     const scaleY = 1.0 / sy;
     merged.scale(scaleXZ, scaleY, scaleXZ);
   }
-
-  // Replace baked normals (they may have been distorted by non-uniform scale).
+  // Recompute normals after the non-uniform scale; the GLB's own UVs are kept.
   merged.computeVertexNormals();
-  // Synthetic UVs so the building shader's window grid still renders sensibly.
-  projectCylindricalUVs(merged);
-  return merged;
+
+  const material = firstMaterial ? prepareInstanceMaterial(firstMaterial) : null;
+  return { geometry: merged, material };
+}
+
+/**
+ * Clone the GLB material and install an `onBeforeCompile` that wires up
+ * per-instance attributes for mute (Flopped), selection, and outcome accent.
+ * The standard PBR pipeline (lighting, baseColorTexture, etc.) is preserved.
+ */
+function prepareInstanceMaterial(src: THREE.Material): THREE.Material {
+  const cloned = src.clone();
+  // Ensure our InstancedMesh's per-instance attrs are seen by the shader.
+  cloned.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+attribute float instanceMute;
+attribute float instanceSelected;
+attribute float instanceOutcomeAccent;
+attribute float instanceWindowDensity;
+attribute float instanceWindowIntensity;
+varying float vMute;
+varying float vSelected;
+varying float vOutcomeAccent;
+varying float vWindowDensity;
+varying float vWindowIntensity;`
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+vMute = instanceMute;
+vSelected = instanceSelected;
+vOutcomeAccent = instanceOutcomeAccent;
+vWindowDensity = instanceWindowDensity;
+vWindowIntensity = instanceWindowIntensity;`
+      );
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+varying float vMute;
+varying float vSelected;
+varying float vOutcomeAccent;
+varying float vWindowDensity;
+varying float vWindowIntensity;`
+      )
+      .replace(
+        '#include <opaque_fragment>',
+        `// "Lights on" — Kenney's colormap atlas paints windows as blue tiles
+// against cream/white walls. Detect window-ness from the sampled diffuse
+// (blue-dominant pixels) and add per-instance emissive proportional to
+// (visitor density × ARR intensity). Walls stay neutral; windows glow.
+{
+  float winness = smoothstep(0.05, 0.30, diffuseColor.b - max(diffuseColor.r, diffuseColor.g) * 0.65);
+  float lit = clamp(vWindowDensity * vWindowIntensity, 0.0, 1.0);
+  vec3 windowGlow = mix(vec3(0.62, 0.78, 1.0), vec3(0.95, 0.94, 0.85), lit);
+  outgoingLight += windowGlow * winness * lit * 1.35;
+
+  // Per-instance overrides (outcome mute / accent / selection).
+  float grey = dot(outgoingLight, vec3(0.299, 0.587, 0.114));
+  outgoingLight = mix(outgoingLight, vec3(grey * 0.55), vMute * 0.85);
+  if (vOutcomeAccent > 0.5 && vOutcomeAccent < 1.5) {
+    outgoingLight = mix(outgoingLight, vec3(0.051, 0.580, 0.533), 0.32);
+  } else if (vOutcomeAccent > 1.5 && vOutcomeAccent < 2.5) {
+    outgoingLight = mix(outgoingLight, vec3(0.42, 0.26, 0.72), 0.30);
+  }
+  if (vSelected > 0.5) {
+    outgoingLight = mix(outgoingLight, vec3(0.49, 0.23, 0.93), 0.32);
+  }
+}
+#include <opaque_fragment>`
+      );
+  };
+  cloned.needsUpdate = true;
+  return cloned;
 }
 
 export interface GlbLoadOptions {
@@ -113,32 +173,32 @@ export interface GlbLoadOptions {
   fallback: () => THREE.BufferGeometry;
 }
 
-export function loadArchetypeGeometry(opts: GlbLoadOptions): Promise<THREE.BufferGeometry> {
+export function loadArchetypeAsset(opts: GlbLoadOptions): Promise<ArchetypeAsset> {
   const key = opts.glbAsset;
   const hit = cache.get(key);
   if (hit) return hit;
 
-  const promise = (async () => {
+  const promise = (async (): Promise<ArchetypeAsset> => {
     const url = `${BUILDINGS_BASE}/${opts.glbAsset}`;
     let head: Response;
     try {
       head = await fetch(url, { method: 'HEAD' });
     } catch (err) {
       console.warn(`[glbLoader] HEAD failed for ${url}, using procedural fallback`, err);
-      return opts.fallback();
+      return { geometry: opts.fallback(), material: null };
     }
     if (!head.ok) {
       console.info(`[glbLoader] ${url} not present (status ${head.status}), using procedural fallback`);
-      return opts.fallback();
+      return { geometry: opts.fallback(), material: null };
     }
     try {
       const gltf = await loader.loadAsync(url);
-      const geom = bakeGltfToArchetypeGeometry(gltf);
+      const baked = bakeGltf(gltf);
       console.info(`[glbLoader] loaded ${url}`);
-      return geom;
+      return baked;
     } catch (err) {
       console.warn(`[glbLoader] failed to parse ${url}, using procedural fallback`, err);
-      return opts.fallback();
+      return { geometry: opts.fallback(), material: null };
     }
   })();
   cache.set(key, promise);

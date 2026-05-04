@@ -889,6 +889,43 @@ select {
   border: 1px solid rgba(31, 35, 48, 0.18);
 }
 
+.legend-enc {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 2px 0 4px;
+}
+
+.legend-enc-row {
+  display: contents;
+}
+
+.legend-enc-channel {
+  font-size: 10px;
+  color: var(--ink-mute);
+  white-space: nowrap;
+}
+
+.legend-enc-kpi {
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.legend-stage-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+  margin-top: 6px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 10px;
+  color: var(--ink-mute);
+}
+
 .empty {
   color: var(--ink-mute);
   font-size: 12px;

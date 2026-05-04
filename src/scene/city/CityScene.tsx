@@ -17,7 +17,6 @@ import { SelectionRing } from './SelectionRing';
 import { NewsFireworks } from './NewsFireworks';
 import { OutcomeMarkers } from './OutcomeMarkers';
 import { ExitOutcomeSparkles } from './ExitOutcomeSparkles';
-import { RooftopBeacons } from './RooftopBeacons';
 
 /** Minimum centre-to-centre spacing (world units). */
 const PITCH_MIN = 2.85;
@@ -283,7 +282,6 @@ export function CityScene() {
       <CityBlockLabels labels={blockLabels} />
       <GlowBase startups={startups} positions={positions} />
       <Buildings startups={startups} positions={positions} />
-      <RooftopBeacons startups={startups} positions={positions} />
       <Spires startups={startups} positions={positions} />
       <OutcomeMarkers startups={startups} positions={positions} />
       <ExitOutcomeSparkles startups={startups} positions={positions} />

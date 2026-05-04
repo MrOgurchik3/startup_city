@@ -9,12 +9,12 @@ import { REGION_IDS } from '../data/regions';
 
 const heightScale = scaleLog<number, number>()
   .domain([1e5, 5e8])
-  .range([0.6, 12])
+  .range([2.2, 14])
   .clamp(true);
 
 const widthScale = scaleSqrt<number, number>()
   .domain([0, 1e8])
-  .range([0.6, 2.4])
+  .range([0.95, 2.6])
   .clamp(true);
 
 const spireScale = scaleLinear<number, number>()
@@ -35,11 +35,11 @@ const windowIlluminanceScale = scaleSqrt<number, number>()
   .clamp(true);
 
 export function buildingHeight(s: Startup): number {
-  return Math.max(0.4, heightScale(Math.max(1e5, s.totalRaised)));
+  return Math.max(2.0, heightScale(Math.max(1e5, s.totalRaised)));
 }
 
 export function buildingWidth(s: Startup): number {
-  return Math.max(0.4, widthScale(s.arr));
+  return Math.max(0.85, widthScale(s.arr));
 }
 
 export function spireHeight(s: Startup): number {
