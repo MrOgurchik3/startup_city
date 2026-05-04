@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import * as THREE from 'three';
 import { loadWorldAtlas } from '../../data/worldAtlas';
 import type { WorldFeatureCollection } from '../../data/worldAtlas';
-import { buildFlatGeometry, shapesFromGeometry } from './geoUtils';
+import { R_GLOBE } from '../../lib/projection';
+import { buildSpheredFlatGeometry, polysFromGeometry, type PolyRings } from './geoUtils';
+
+// Sit fractionally above the ocean sphere to avoid z-fighting with it.
+const LAND_RADIUS = R_GLOBE + 0.08;
 
 export function WorldBasemap() {
   const [fc, setFc] = useState<WorldFeatureCollection | null>(null);
@@ -23,26 +26,22 @@ export function WorldBasemap() {
 
   const geometry = useMemo(() => {
     if (!fc) return null;
-    const allShapes: THREE.Shape[] = [];
+    const allPolys: PolyRings[] = [];
     fc.features.forEach((f) => {
       if (f.properties.region) return; // data regions handled separately
-      shapesFromGeometry(f.geometry).forEach((s) => allShapes.push(s));
+      polysFromGeometry(f.geometry).forEach((p) => allPolys.push(p));
     });
-    if (allShapes.length === 0) return null;
-    return buildFlatGeometry(allShapes);
+    return buildSpheredFlatGeometry(allPolys, LAND_RADIUS);
   }, [fc]);
 
   if (!geometry) return null;
 
   return (
-    <mesh geometry={geometry} position={[0, 0.125, 0]} renderOrder={2}>
-      <meshBasicMaterial
-        color="#64748b"
-        toneMapped={false}
-        depthWrite
-        polygonOffset
-        polygonOffsetFactor={-2}
-        polygonOffsetUnits={-2}
+    <mesh geometry={geometry} renderOrder={2}>
+      <meshStandardMaterial
+        color="#7a8699"
+        roughness={0.92}
+        metalness={0.0}
       />
     </mesh>
   );

@@ -15,7 +15,9 @@ const SCENE_SKY = CITY_PALETTE.mapLightSky;
 function HorizonFog() {
   const mode = useAppStore((s) => s.mode);
   if (mode === 'global') {
-    return <fogExp2 attach="fog" args={[SCENE_SKY, 0.000095]} />;
+    // Globe sits comfortably inside the camera frustum; no fog needed (any fog
+    // washes the far rim of the planet against the light sky).
+    return null;
   }
   return <fogExp2 attach="fog" args={[SCENE_SKY, 0.00105]} />;
 }
@@ -67,8 +69,9 @@ function CameraRig() {
     if (!c) return;
     c.target.set(0, 0, 0);
     if (mode === 'global') {
-      // North-side vantage (projection: north = −Z); not from the south below the map.
-      c.object.position.set(28, 98, -88);
+      // Oblique vantage above the equator looking at the front of the globe;
+      // UK / Western Europe (lng~0, lat~50) lands prominently in frame.
+      c.object.position.set(120, 110, 240);
     } else {
       c.object.position.set(60, 55, 60);
     }
@@ -77,10 +80,11 @@ function CameraRig() {
 
   const panFirst = mode === 'global' && globalNavMode === 'pan';
 
-  const maxPolarAngle = mode === 'global' ? Math.PI * 0.58 : Math.PI * 0.52;
-  const minPolarAngle = mode === 'global' ? 0.12 : 0.08;
-  const minDistance = mode === 'global' ? 32 : 12;
-  const maxDistance = mode === 'global' ? 480 : 220;
+  // Globe: allow nearly full polar rotation so users can spin to either pole.
+  const maxPolarAngle = mode === 'global' ? Math.PI - 0.08 : Math.PI * 0.52;
+  const minPolarAngle = mode === 'global' ? 0.08 : 0.08;
+  const minDistance = mode === 'global' ? 130 : 12;
+  const maxDistance = mode === 'global' ? 720 : 220;
 
   return (
     <OrbitControls
@@ -117,7 +121,7 @@ export function Scene() {
     <Canvas
       shadows={false}
       gl={{ antialias: true, alpha: false }}
-      camera={{ fov: 45, near: 0.1, far: 4000, position: [28, 98, -88] }}
+      camera={{ fov: 45, near: 0.1, far: 4000, position: [120, 110, 240] }}
       onCreated={({ scene, gl }) => {
         scene.background = new THREE.Color(CITY_PALETTE.mapLightSky);
         gl.setClearColor(CITY_PALETTE.mapLightSky);

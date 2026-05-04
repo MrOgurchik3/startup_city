@@ -4,7 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import type { InvestmentEdge, RegionAggregate, RegionId } from '../../types';
 import { REGIONS } from '../../data/regions';
 import { REGION_FLOW_ORIGIN_COLORS } from '../../data/regionFlowColors';
-import { lngLatToWorld } from '../../lib/projection';
+import { lngLatToSphere, R_GLOBE } from '../../lib/projection';
 import {
   arcGlow,
   arcSpeed,
@@ -20,9 +20,11 @@ interface FlowArcsProps {
 }
 
 interface ArcDef {
+  /** Anchor positions in world space (already at the lifted region roof). */
   start: THREE.Vector3;
   end: THREE.Vector3;
-  control: THREE.Vector3;
+  /** Maximum extra radial lift at the apex of the arc. */
+  lift: number;
   thickness: number;
   speed: number;
   glow: number;
@@ -62,47 +64,93 @@ void main() {
 }
 `;
 
-function roofY(
+const MAX_LIFT = R_GLOBE * 0.35;
+const ROOF_OFFSET_BASE = 0.22; // matches REGION_BASE_RADIUS lift above ocean
+
+function regionRoofRadius(
   rid: RegionId,
   aggregates: Record<RegionId, RegionAggregate>,
   extents: AggregateEncodingExtents
 ): number {
   const h = extrusionForSlice(aggregates[rid].dealFlowVolume, extents);
-  return 0.05 + h;
+  return R_GLOBE + ROOF_OFFSET_BASE + h + 0.4;
 }
 
-function createArcGeometry(def: ArcDef): THREE.BufferGeometry {
-  const segments = 64;
+/** Spherical linear interpolation of two unit vectors. */
+function slerpUnit(a: THREE.Vector3, b: THREE.Vector3, t: number, out: THREE.Vector3): THREE.Vector3 {
+  const dot = THREE.MathUtils.clamp(a.dot(b), -1, 1);
+  const omega = Math.acos(dot);
+  if (omega < 1e-5) {
+    return out.copy(a).lerp(b, t).normalize();
+  }
+  const sinO = Math.sin(omega);
+  const wa = Math.sin((1 - t) * omega) / sinO;
+  const wb = Math.sin(t * omega) / sinO;
+  return out
+    .set(0, 0, 0)
+    .addScaledVector(a, wa)
+    .addScaledVector(b, wb);
+}
+
+/**
+ * Build a thin tube/ribbon along a sphered arc:
+ *   • direction interpolated via slerp between start/end unit vectors
+ *   • radius rises in a parabolic bulge centered at t=0.5 (visual "altitude")
+ *   • cross-section perpendicular to tangent and aligned to the surface normal
+ *     so the ribbon always reads "facing outward from the globe"
+ */
+function createArcGeometry(def: ArcDef, segments = 96): THREE.BufferGeometry {
   const positions = new Float32Array((segments + 1) * 2 * 3);
   const ts = new Float32Array((segments + 1) * 2);
   const widths = new Float32Array((segments + 1) * 2);
   const indices: number[] = [];
 
-  const tmp = new THREE.Vector3();
-  const next = new THREE.Vector3();
+  const startN = def.start.clone().normalize();
+  const endN = def.end.clone().normalize();
+  const rStart = def.start.length();
+  const rEnd = def.end.length();
+
+  const dirA = new THREE.Vector3();
+  const dirB = new THREE.Vector3();
+  const posA = new THREE.Vector3();
+  const posB = new THREE.Vector3();
   const tangent = new THREE.Vector3();
-  const normal = new THREE.Vector3(0, 1, 0);
+  const normal = new THREE.Vector3();
   const right = new THREE.Vector3();
 
-  const sample = (t: number, out: THREE.Vector3) => {
-    const u = 1 - t;
-    out.set(0, 0, 0);
-    out.addScaledVector(def.start, u * u);
-    out.addScaledVector(def.control, 2 * u * t);
-    out.addScaledVector(def.end, t * t);
-  };
+  const sampleRadius = (t: number) =>
+    THREE.MathUtils.lerp(rStart, rEnd, t) + def.lift * 4 * t * (1 - t);
 
   for (let i = 0; i <= segments; i += 1) {
     const t = i / segments;
-    sample(t, tmp);
-    sample(Math.min(1, t + 0.001), next);
-    tangent.copy(next).sub(tmp).normalize();
-    right.crossVectors(tangent, normal).normalize();
+    slerpUnit(startN, endN, t, dirA);
+    posA.copy(dirA).multiplyScalar(sampleRadius(t));
+
+    // Forward neighbor for tangent.
+    const tN = Math.min(1, t + 1 / segments);
+    slerpUnit(startN, endN, tN, dirB);
+    posB.copy(dirB).multiplyScalar(sampleRadius(tN));
+
+    tangent.copy(posB).sub(posA);
+    if (tangent.lengthSq() < 1e-10) {
+      // End of arc: reuse previous tangent direction.
+      tangent.set(0, 0, 1);
+    } else {
+      tangent.normalize();
+    }
+    normal.copy(dirA); // outward surface-normal direction
+
+    right.crossVectors(tangent, normal);
+    if (right.lengthSq() < 1e-10) {
+      right.set(1, 0, 0);
+    } else {
+      right.normalize();
+    }
 
     const w = def.thickness * (0.75 + Math.sin(t * Math.PI) * 0.65);
 
-    const left = tmp.clone().addScaledVector(right, -w);
-    const rightP = tmp.clone().addScaledVector(right, w);
+    const left = posA.clone().addScaledVector(right, -w);
+    const rightP = posA.clone().addScaledVector(right, w);
 
     positions[i * 6 + 0] = left.x;
     positions[i * 6 + 1] = left.y;
@@ -154,48 +202,45 @@ export function FlowArcs({ edges, aggregates, extents }: FlowArcsProps) {
       list.forEach((edge, laneIdx) => {
         const from = REGIONS[edge.investorCountry].centroid;
         const to = REGIONS[edge.startupCountry].centroid;
-        const [sx, sz] = lngLatToWorld(from[0], from[1]);
-        const [ex, ez] = lngLatToWorld(to[0], to[1]);
-        const sy = roofY(edge.investorCountry, aggregates, extents);
-        const ey = roofY(edge.startupCountry, aggregates, extents);
-        const start = new THREE.Vector3(sx, sy, sz);
-        const end = new THREE.Vector3(ex, ey, ez);
-        const chord = new THREE.Vector3(ex - sx, 0, ez - sz);
-        const len = Math.max(1e-4, chord.length());
-        chord.multiplyScalar(1 / len);
-        const perp = new THREE.Vector3(-chord.z, 0, chord.x);
+        const rStart = regionRoofRadius(edge.investorCountry, aggregates, extents);
+        const rEnd = regionRoofRadius(edge.startupCountry, aggregates, extents);
+        const startN = lngLatToSphere(from[0], from[1], 1);
+        const endN = lngLatToSphere(to[0], to[1], 1);
+
+        // Lane axis: perpendicular to the great-circle plane, tangent to the
+        // sphere at both endpoints. Shifting endpoints along this direction
+        // moves the whole arc to a parallel-ish neighbouring path.
+        const axis = startN.clone().cross(endN);
+        if (axis.lengthSq() < 1e-8) axis.set(0, 1, 0);
+        else axis.normalize();
+
         const lane = laneIdx - (n - 1) / 2;
-        const spread = 3.15;
-        const edgeNudge = perp.clone().multiplyScalar(lane * 0.52);
-        start.add(edgeNudge);
-        end.add(edgeNudge);
-        const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
-        const dist = Math.hypot(ex - sx, ez - sz);
-        const lift = Math.min(
-          72,
-          Math.max(sy, ey) + 10 + dist * 0.26 + Math.abs(lane) * spread * 0.15
-        );
-        const control = new THREE.Vector3(
-          mid.x + perp.x * lane * spread,
-          lift,
-          mid.z + perp.z * lane * spread
-        );
+        const laneShift = (lane * 0.014); // small angular offset on the unit sphere
+        const startShifted = startN
+          .clone()
+          .addScaledVector(axis, laneShift)
+          .normalize();
+        const endShifted = endN
+          .clone()
+          .addScaledVector(axis, laneShift)
+          .normalize();
+
+        const start = startShifted.clone().multiplyScalar(rStart);
+        const end = endShifted.clone().multiplyScalar(rEnd);
+
+        // Great-circle chord length on the unit sphere -> arc-length proxy.
+        const cosO = THREE.MathUtils.clamp(startShifted.dot(endShifted), -1, 1);
+        const omega = Math.acos(cosO);
+        const arcLen = omega * R_GLOBE;
+        const lift = Math.min(MAX_LIFT, 4 + arcLen * 0.18 + Math.abs(lane) * 0.6);
+
         const t = arcThickness(edge.totalCapital) * 0.62;
         const speed = arcSpeed(edge.dealCount);
         const glow = arcGlow(edge.avgRoundSize) * 1.28;
         const color = lineColorForOrigin(edge.investorCountry);
         const phase = (laneIdx * 0.173 + edge.startupCountry.charCodeAt(0) * 0.01) % 1;
         out.push({
-          def: {
-            start,
-            end,
-            control,
-            thickness: t,
-            speed,
-            glow,
-            color,
-            phase,
-          },
+          def: { start, end, lift, thickness: t, speed, glow, color, phase },
         });
       });
     });
