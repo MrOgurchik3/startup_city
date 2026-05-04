@@ -17,6 +17,8 @@ import { SelectionRing } from './SelectionRing';
 import { NewsFireworks } from './NewsFireworks';
 import { OutcomeMarkers } from './OutcomeMarkers';
 import { ExitOutcomeSparkles } from './ExitOutcomeSparkles';
+import { InvestorLines } from './InvestorLines';
+import { SubSectorTints } from './SubSectorTints';
 
 /** Minimum centre-to-centre spacing (world units). */
 const PITCH_MIN = 2.85;
@@ -280,12 +282,14 @@ export function CityScene() {
         <CityDistrictAccents strips={districtAccents} />
       )}
       <CityBlockLabels labels={blockLabels} />
+      <SubSectorTints startups={startups} positions={positions} />
       <GlowBase startups={startups} positions={positions} />
       <Buildings startups={startups} positions={positions} />
       <Spires startups={startups} positions={positions} />
       <OutcomeMarkers startups={startups} positions={positions} />
       <ExitOutcomeSparkles startups={startups} positions={positions} />
       <SelectionRing startup={selectedStartup} positions={positions} />
+      <InvestorLines startups={startups} positions={positions} />
       <NewsFireworks startups={startups} positions={positions} />
     </group>
   );

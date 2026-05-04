@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { ThreeEvent } from '@react-three/fiber';
 import type { Startup } from '../../types';
@@ -22,7 +22,6 @@ import {
   INVESTOR_VC_INDEX,
   type ArchetypeMeta,
 } from './cityArchetypes';
-import { loadArchetypeAsset } from './glbBuildingLoader';
 
 interface BuildingsProps {
   startups: Startup[];
@@ -53,32 +52,8 @@ function ShapeGroup({
   const selectStartup = useAppStore((s) => s.selectStartup);
   const selection = useAppStore((s) => s.selection);
 
-  // Start synchronously with the procedural geometry + window shader so the
-  // city renders immediately. Once the GLB resolves, swap to the GLB's baked
-  // geometry AND its baked material (which has per-instance overrides patched
-  // in by the loader). Procedural fallback keeps the window shader.
-  // (`archetype` is stable per ShapeGroup — each archetype gets its own keyed
-  // instance from the parent, so the procedural fallback only computes once.)
-  const proceduralGeometry = useMemo(() => archetype.builder(), [archetype]);
-  const proceduralMaterial = useMemo(() => buildShaderMaterial(), []);
-  const [geometry, setGeometry] = useState<THREE.BufferGeometry>(proceduralGeometry);
-  const [material, setMaterial] = useState<THREE.Material>(proceduralMaterial);
-
-  useEffect(() => {
-    if (!archetype.glbAsset) return;
-    let cancelled = false;
-    loadArchetypeAsset({
-      glbAsset: archetype.glbAsset,
-      fallback: archetype.builder,
-    }).then((asset) => {
-      if (cancelled) return;
-      if (asset.geometry !== proceduralGeometry) setGeometry(asset.geometry);
-      if (asset.material) setMaterial(asset.material);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [archetype, proceduralGeometry]);
+  const geometry = useMemo(() => archetype.builder(), [archetype]);
+  const material = useMemo(() => buildShaderMaterial(), []);
 
   const podiumGeometry = useMemo(() => {
     const g = new THREE.BoxGeometry(1, 1, 1);
@@ -196,7 +171,7 @@ function ShapeGroup({
     geom.setAttribute('instanceSelected', new THREE.InstancedBufferAttribute(buffers.selected, 1));
     geom.setAttribute('instanceOutcomeMute', new THREE.InstancedBufferAttribute(buffers.outcomeMute, 1));
     geom.setAttribute('instanceOutcomeAccent', new THREE.InstancedBufferAttribute(buffers.outcomeAccent, 1));
-  }, [startups, positions, buffers, selection, archetype, geometry, material]);
+  }, [startups, positions, buffers, selection, archetype]);
 
   const handlePointerOver = (e: ThreeEvent<PointerEvent>) => {
     if (e.instanceId == null) return;

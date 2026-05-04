@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { useFrame } from '@react-three/fiber';
 import type { Startup } from '../../types';
 import { cityBuildingBaseY, cityBuildingWidth, shapeGroup } from '../../lib/encoding';
 import { stageColorHex } from '../../data/stages';
@@ -12,11 +13,17 @@ interface GlowBaseProps {
 
 const VERTEX_SHADER = /* glsl */ `
 attribute vec3 instanceColor;
+attribute float instanceFundStatus;     // 0 mid · 1 likely raising · 2 recently raised
+attribute float instanceDaysSinceRound; // for fade on "recently raised"
 varying vec2 vUv;
 varying vec3 vColor;
+varying float vFundStatus;
+varying float vDaysSince;
 void main() {
   vUv = uv;
   vColor = instanceColor;
+  vFundStatus = instanceFundStatus;
+  vDaysSince = instanceDaysSinceRound;
   vec4 worldPos = instanceMatrix * vec4(position, 1.0);
   gl_Position = projectionMatrix * modelViewMatrix * worldPos;
 }
@@ -24,15 +31,41 @@ void main() {
 
 const FRAGMENT_SHADER = /* glsl */ `
 precision highp float;
+uniform float uTime;
 varying vec2 vUv;
 varying vec3 vColor;
+varying float vFundStatus;
+varying float vDaysSince;
+
+const vec3 GOLD = vec3(0.99, 0.78, 0.32);
+
 void main() {
   vec2 uv = vUv * 2.0 - 1.0;
   float d = length(uv);
   float ring = smoothstep(0.65, 0.95, 1.0 - abs(d - 0.85));
   float core = smoothstep(0.95, 0.0, d) * 0.18;
-  float a = clamp(ring + core, 0.0, 1.0);
-  gl_FragColor = vec4(vColor, a);
+
+  // Likely Raising — slow breathing pulse on ring intensity (~3s period).
+  float pulse = 1.0;
+  if (vFundStatus > 0.5 && vFundStatus < 1.5) {
+    pulse = 0.65 + 0.55 * (0.5 + 0.5 * sin(uTime * 2.1));
+  }
+
+  // Recently Raised — short-lived gold bloom that decays over ~14 days.
+  float bloom = 0.0;
+  vec3 bloomCol = vec3(0.0);
+  if (vFundStatus > 1.5 && vFundStatus < 2.5) {
+    float decay = exp(-vDaysSince / 14.0);
+    // Gentle scintillation overlaid on the decay so it reads as "fresh"
+    float scint = 0.85 + 0.15 * sin(uTime * 4.4);
+    bloom = decay * scint * 0.9;
+    bloomCol = GOLD;
+  }
+
+  vec3 col = mix(vColor, bloomCol, clamp(bloom, 0.0, 1.0));
+  float ringA = ring * pulse + bloom * ring * 0.8;
+  float a = clamp(ringA + core, 0.0, 1.0);
+  gl_FragColor = vec4(col, a);
 }
 `;
 
@@ -50,6 +83,7 @@ export function GlowBase({ startups, positions }: GlowBaseProps) {
       new THREE.ShaderMaterial({
         vertexShader: VERTEX_SHADER,
         fragmentShader: FRAGMENT_SHADER,
+        uniforms: { uTime: { value: 0 } },
         transparent: true,
         depthWrite: false,
         blending: THREE.NormalBlending,
@@ -57,10 +91,14 @@ export function GlowBase({ startups, positions }: GlowBaseProps) {
     []
   );
 
-  const colorBuf = useMemo(
-    () => new Float32Array(startups.length * 3),
-    [startups.length]
-  );
+  const buffers = useMemo(() => {
+    const n = startups.length;
+    return {
+      color: new Float32Array(n * 3),
+      fundStatus: new Float32Array(n),
+      daysSince: new Float32Array(n),
+    };
+  }, [startups.length]);
 
   useEffect(() => {
     const mesh = meshRef.current;
@@ -83,7 +121,6 @@ export function GlowBase({ startups, positions }: GlowBaseProps) {
         c.multiplyScalar(1.05);
       } else if (g === 1) {
         c.set(CITY_PALETTE.tealBright);
-        c.multiplyScalar(1.0);
       } else if (g === 2) {
         c.set(CITY_PALETTE.amber);
         c.multiplyScalar(0.95);
@@ -91,18 +128,32 @@ export function GlowBase({ startups, positions }: GlowBaseProps) {
         c.set(CITY_PALETTE.purpleMain);
         c.multiplyScalar(0.92);
       }
-      colorBuf[i * 3 + 0] = c.r;
-      colorBuf[i * 3 + 1] = c.g;
-      colorBuf[i * 3 + 2] = c.b;
+      buffers.color[i * 3 + 0] = c.r;
+      buffers.color[i * 3 + 1] = c.g;
+      buffers.color[i * 3 + 2] = c.b;
+
+      // Fundraising status code: 0 mid · 1 likely raising · 2 recently raised.
+      // (Investors don't carry the status — leave them at 0 = no pulse.)
+      let code = 0;
+      if (s.entityType === 'Startup') {
+        if (s.fundraisingStatus === 'Likely Raising') code = 1;
+        else if (s.fundraisingStatus === 'Recently Raised') code = 2;
+      }
+      buffers.fundStatus[i] = code;
+      buffers.daysSince[i] = Math.max(0, s.timeToLastRoundDays);
     });
     mesh.count = startups.length;
     mesh.instanceMatrix.needsUpdate = true;
     const geom = mesh.geometry as THREE.InstancedBufferGeometry;
-    geom.setAttribute(
-      'instanceColor',
-      new THREE.InstancedBufferAttribute(colorBuf, 3)
-    );
-  }, [startups, positions, colorBuf]);
+    geom.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(buffers.color, 3));
+    geom.setAttribute('instanceFundStatus', new THREE.InstancedBufferAttribute(buffers.fundStatus, 1));
+    geom.setAttribute('instanceDaysSinceRound', new THREE.InstancedBufferAttribute(buffers.daysSince, 1));
+  }, [startups, positions, buffers]);
+
+  useFrame(({ clock }) => {
+    // eslint-disable-next-line react-hooks/immutability
+    material.uniforms.uTime.value = clock.getElapsedTime();
+  });
 
   if (startups.length === 0) return null;
 

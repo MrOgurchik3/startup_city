@@ -255,27 +255,24 @@ export interface ArchetypeMeta {
   isInvestor: boolean;
   /** Per-axis multiplier on top of the (w, h, w) per-instance footprint. */
   scaleMul: [number, number, number];
-  /** Optional GLB filename in `public/buildings/`. If present and the file
-   *  loads, it replaces the procedural builder. See `public/buildings/README.md`. */
-  glbAsset?: string;
 }
 
 export const ARCHETYPES: ArchetypeMeta[] = [
-  { index: 0, builder: archFinTech, isInvestor: false, scaleMul: [1, 1, 1], glbAsset: 'fintech.glb' },
-  { index: 1, builder: archHealthTech, isInvestor: false, scaleMul: [1, 1, 1], glbAsset: 'healthtech.glb' },
-  { index: 2, builder: archDeepTech, isInvestor: false, scaleMul: [1, 1, 1], glbAsset: 'deeptech.glb' },
-  { index: 3, builder: archCleanTech, isInvestor: false, scaleMul: [1, 1, 1], glbAsset: 'cleantech.glb' },
-  { index: 4, builder: archAI, isInvestor: false, scaleMul: [1, 1, 1], glbAsset: 'ai.glb' },
-  { index: 5, builder: archSaaS, isInvestor: false, scaleMul: [1, 1, 1], glbAsset: 'saas.glb' },
-  { index: 6, builder: archConsumer, isInvestor: false, scaleMul: [1, 1, 1], glbAsset: 'consumer.glb' },
-  { index: 7, builder: archLogistics, isInvestor: false, scaleMul: [1, 1, 1], glbAsset: 'logistics.glb' },
-  { index: 8, builder: archEducation, isInvestor: false, scaleMul: [1, 1, 1], glbAsset: 'education.glb' },
-  { index: 9, builder: archPropTech, isInvestor: false, scaleMul: [1, 1, 1], glbAsset: 'proptech.glb' },
-  { index: 10, builder: archFallback, isInvestor: false, scaleMul: [1, 1, 1], glbAsset: 'fallback.glb' },
+  { index: 0, builder: archFinTech, isInvestor: false, scaleMul: [1, 1, 1] },
+  { index: 1, builder: archHealthTech, isInvestor: false, scaleMul: [1, 1, 1] },
+  { index: 2, builder: archDeepTech, isInvestor: false, scaleMul: [1, 1, 1] },
+  { index: 3, builder: archCleanTech, isInvestor: false, scaleMul: [1, 1, 1] },
+  { index: 4, builder: archAI, isInvestor: false, scaleMul: [1, 1, 1] },
+  { index: 5, builder: archSaaS, isInvestor: false, scaleMul: [1, 1, 1] },
+  { index: 6, builder: archConsumer, isInvestor: false, scaleMul: [1, 1, 1] },
+  { index: 7, builder: archLogistics, isInvestor: false, scaleMul: [1, 1, 1] },
+  { index: 8, builder: archEducation, isInvestor: false, scaleMul: [1, 1, 1] },
+  { index: 9, builder: archPropTech, isInvestor: false, scaleMul: [1, 1, 1] },
+  { index: 10, builder: archFallback, isInvestor: false, scaleMul: [1, 1, 1] },
   // Investor footprint multipliers preserve the prior visual weight (was INV_FOOTPRINT_MUL = 1.1).
-  { index: 11, builder: archInvestorVC, isInvestor: true, scaleMul: [1.12 * 1.1, 1.18 * 1.1, 1.06 * 1.1], glbAsset: 'investor-vc.glb' },
-  { index: 12, builder: archInvestorAngel, isInvestor: true, scaleMul: [0.88 * 1.1, 1.0 * 1.1, 0.88 * 1.1], glbAsset: 'investor-angel.glb' },
-  { index: 13, builder: archInvestorOther, isInvestor: true, scaleMul: [0.96 * 1.1, 1.0 * 1.1, 0.96 * 1.1], glbAsset: 'investor-other.glb' },
+  { index: 11, builder: archInvestorVC, isInvestor: true, scaleMul: [1.12 * 1.1, 1.18 * 1.1, 1.06 * 1.1] },
+  { index: 12, builder: archInvestorAngel, isInvestor: true, scaleMul: [0.88 * 1.1, 1.0 * 1.1, 0.88 * 1.1] },
+  { index: 13, builder: archInvestorOther, isInvestor: true, scaleMul: [0.96 * 1.1, 1.0 * 1.1, 0.96 * 1.1] },
 ];
 
 export const ARCHETYPE_FALLBACK_INDEX = 10;
