@@ -11,7 +11,7 @@ export function Topbar() {
   const search = useAppStore((s) => s.search);
   const setSearch = useAppStore((s) => s.setSearch);
   const setRegion = useAppStore((s) => s.setRegion);
-  const selectStartup = useAppStore((s) => s.selectStartup);
+  const selectEntity = useAppStore((s) => s.selectEntity);
   const selectRegion = useAppStore((s) => s.selectRegion);
   const globalNavMode = useAppStore((s) => s.globalNavMode);
   const setGlobalNavMode = useAppStore((s) => s.setGlobalNavMode);
@@ -127,7 +127,7 @@ export function Topbar() {
                       onClick={() => {
                         setRegion(s.region);
                         setMode('city');
-                        selectStartup(s.id);
+                        selectEntity(s.id);
                         setSearch('');
                         setOpen(false);
                       }}

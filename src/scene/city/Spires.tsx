@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import type { Startup } from '../../types';
 import {
-  cityBuildingBaseY,
-  cityBuildingHeight,
+  cityBuildingRoofWorldY,
   cityBuildingWidth,
   citySpireHeight,
 } from '../../lib/encoding';
+
+const noopRaycast: THREE.Object3D['raycast'] = () => {};
 
 interface SpiresProps {
   startups: Startup[];
@@ -79,16 +80,21 @@ function StandardSpires({ startups, positions }: SpiresProps) {
       const sh = citySpireHeight(s);
       if (sh < 0.35) return;
       const [x, z] = pos;
-      const baseHeight = cityBuildingHeight(s);
+      const roofY = cityBuildingRoofWorldY(s);
       const w = cityBuildingWidth(s);
       m.makeScale(w * 0.45, sh, w * 0.45);
-      m.setPosition(x, cityBuildingBaseY(s) + baseHeight, z);
+      m.setPosition(x, roofY, z);
       mesh.setMatrixAt(active, m);
       active += 1;
     });
     mesh.count = active;
     mesh.instanceMatrix.needsUpdate = true;
   }, [startups, positions]);
+
+  useLayoutEffect(() => {
+    const im = meshRef.current;
+    if (im) im.raycast = noopRaycast;
+  }, []);
 
   return (
     <instancedMesh
@@ -131,10 +137,10 @@ function RainbowSpires({ unicorns, positions }: { unicorns: Startup[]; positions
       if (!pos) return;
       const sh = Math.max(1.05, citySpireHeight(s) * 1.15);
       const [x, z] = pos;
-      const baseHeight = cityBuildingHeight(s);
+      const roofY = cityBuildingRoofWorldY(s);
       const w = cityBuildingWidth(s);
       m.makeScale(w * 0.58, sh, w * 0.58);
-      m.setPosition(x, cityBuildingBaseY(s) + baseHeight, z);
+      m.setPosition(x, roofY, z);
       mesh.setMatrixAt(i, m);
       hueBuf[i] = hashHue(s.id);
     });
@@ -143,6 +149,11 @@ function RainbowSpires({ unicorns, positions }: { unicorns: Startup[]; positions
     const geom = mesh.geometry as THREE.InstancedBufferGeometry;
     geom.setAttribute('instanceHue', new THREE.InstancedBufferAttribute(hueBuf, 1));
   }, [unicorns, positions, n]);
+
+  useLayoutEffect(() => {
+    const im = meshRef.current;
+    if (im) im.raycast = noopRaycast;
+  }, []);
 
   useFrame((state) => {
     const mesh = meshRef.current;

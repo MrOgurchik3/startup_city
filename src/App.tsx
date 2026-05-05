@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Scene } from './scene/Scene';
 import { Topbar } from './ui/Topbar';
 import { SidePanel } from './ui/SidePanel';
+import { DetailModal } from './ui/DetailModal';
 import { HoverTooltip } from './ui/HoverTooltip';
 import { Legend } from './ui/Legend';
 import { useAppStore } from './store/useAppStore';
@@ -24,6 +25,7 @@ export default function App() {
       </div>
       <Topbar />
       <SidePanel />
+      <DetailModal />
       <Legend />
       <HoverTooltip />
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { Startup } from '../../types';
 
@@ -40,6 +40,8 @@ void main() {
   gl_FragColor = vec4(vColor, a);
 }
 `;
+
+const noopRaycast: THREE.Mesh['raycast'] = () => {};
 
 function subSectorColor(sub: string, target: THREE.Color): void {
   let h = 0;
@@ -98,6 +100,12 @@ export function SubSectorTints({ startups, positions }: SubSectorTintsProps) {
     const geom = mesh.geometry as THREE.InstancedBufferGeometry;
     geom.setAttribute('instanceColor', new THREE.InstancedBufferAttribute(colorBuf, 3));
   }, [startups, positions, colorBuf]);
+
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    mesh.raycast = noopRaycast;
+  }, []);
 
   if (startups.length === 0) return null;
 

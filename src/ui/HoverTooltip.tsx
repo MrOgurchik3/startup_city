@@ -11,14 +11,14 @@ export function HoverTooltip() {
   const { aggregates } = useFilteredDataset();
 
   const startup = useMemo(() => {
-    if (hover?.kind !== 'startup') return null;
+    if (hover?.kind !== 'entity') return null;
     const { startups } = getDataset();
     return startups.find((s) => s.id === hover.id) ?? null;
   }, [hover]);
 
   if (!hover) return null;
 
-  if (hover.kind === 'startup' && startup) {
+  if (hover.kind === 'entity' && startup) {
     const inv = startup.investorFirmProfile;
     const isFirm = startup.entityType !== 'Startup' && inv;
     return (

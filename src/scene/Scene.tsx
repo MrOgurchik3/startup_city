@@ -43,20 +43,10 @@ function PostEffects() {
 }
 
 function ResetSelectionOnEmptyClick() {
-  const clearSelection = useAppStore((s) => s.clearSelection);
-  return (
-    <mesh
-      position={[0, -0.01, 0]}
-      rotation-x={-Math.PI / 2}
-      onClick={(e) => {
-        e.stopPropagation();
-        clearSelection();
-      }}
-    >
-      <planeGeometry args={[20000, 20000]} />
-      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-    </mesh>
-  );
+  // No-op component; empty clicks are handled at the Canvas level so we don't
+  // introduce an always-intersecting plane that can steal pointer events from
+  // instanced buildings.
+  return null;
 }
 
 function CameraRig() {
@@ -73,7 +63,8 @@ function CameraRig() {
       // UK / Western Europe (lng~0, lat~50) lands prominently in frame.
       c.object.position.set(120, 110, 240);
     } else {
-      c.object.position.set(60, 55, 60);
+      // Opposite quadrant from prior default so the city faces the intended direction.
+      c.object.position.set(-60, 55, -60);
     }
     c.update();
   }, [mode]);
@@ -116,12 +107,19 @@ function CameraRig() {
 
 export function Scene() {
   const mode = useAppStore((s) => s.mode);
+  const clearSelection = useAppStore((s) => s.clearSelection);
+  const setHover = useAppStore((s) => s.setHover);
 
   return (
     <Canvas
       shadows={false}
       gl={{ antialias: true, alpha: false }}
       camera={{ fov: 45, near: 0.1, far: 4000, position: [120, 110, 240] }}
+      onPointerMissed={() => {
+        if (mode !== 'global') return;
+        clearSelection();
+        setHover(null);
+      }}
       onCreated={({ scene, gl }) => {
         scene.background = new THREE.Color(CITY_PALETTE.mapLightSky);
         gl.setClearColor(CITY_PALETTE.mapLightSky);

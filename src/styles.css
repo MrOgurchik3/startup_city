@@ -22,10 +22,13 @@
   --accent: #0d9488;
   --positive: #10b981;
   --negative: #dc2626;
-  --stage-pre: #dc2626;
-  --stage-growth: #f59e0b;
-  --stage-scale: #10b981;
-  --stage-late: #7c3aed;
+  --stage-pre: #b91c1c;
+  --stage-notraised: #64748b;
+  --stage-angelround: #2563eb;
+  --stage-seed: #d97706;
+  --stage-growth: #0e7490;
+  --stage-scale: #059669;
+  --stage-late: #7e22ce;
   --stage-sel: #7c3aed;
   --news-fund: #0d9488;
   --news-prod: #7c3aed;
@@ -266,7 +269,7 @@ select {
   bottom: 0;
   width: 292px;
   box-sizing: border-box;
-  padding-top: 72px;
+  padding-top: 0;
   background: var(--bg-elev);
   border: solid var(--line);
   border-width: 0 0 0 1px;
@@ -407,6 +410,21 @@ select {
 .chip-stage-pre.active {
   background: var(--stage-pre);
   border-color: var(--stage-pre);
+}
+
+.chip-stage-notraised.active {
+  background: var(--stage-notraised);
+  border-color: var(--stage-notraised);
+}
+
+.chip-stage-angelround.active {
+  background: var(--stage-angelround);
+  border-color: var(--stage-angelround);
+}
+
+.chip-stage-seed.active {
+  background: var(--stage-seed);
+  border-color: var(--stage-seed);
 }
 
 .chip-stage-late.active {
@@ -564,6 +582,18 @@ select {
   background: var(--stage-pre);
 }
 
+.stage-dot-notraised {
+  background: var(--stage-notraised);
+}
+
+.stage-dot-angelround {
+  background: var(--stage-angelround);
+}
+
+.stage-dot-seed {
+  background: var(--stage-seed);
+}
+
 .stage-dot-mid {
   background: var(--stage-growth);
 }
@@ -612,6 +642,42 @@ select {
 
 .tooltip .row .k {
   color: rgba(245, 243, 238, 0.55);
+}
+
+.detail-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(24, 22, 19, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.detail-modal-card {
+  position: relative;
+  width: min(480px, calc(100vw - 48px));
+  max-height: min(85vh, 880px);
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.detail-modal-head {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 8px 0;
+}
+
+.detail-modal-body {
+  overflow-y: auto;
+  padding: 0 16px 16px;
 }
 
 .legend {
@@ -917,8 +983,10 @@ select {
 
 .legend-stage-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 6px 10px;
+  row-gap: 8px;
   padding-top: 6px;
   margin-top: 6px;
   border-top: 1px solid var(--line-soft);

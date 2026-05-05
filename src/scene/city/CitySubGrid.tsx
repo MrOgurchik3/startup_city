@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 
+const noopRaycast: THREE.LineSegments['raycast'] = () => {};
+
 interface CitySubGridProps {
   cx: number;
   cz: number;
@@ -72,5 +74,14 @@ export function CitySubGrid({
 
   if (cols < 1 || rows < 1) return null;
 
-  return <lineSegments geometry={geometry} material={material} position={[0, y, 0]} />;
+  return (
+    <lineSegments
+      ref={(node) => {
+        if (node) node.raycast = noopRaycast;
+      }}
+      geometry={geometry}
+      material={material}
+      position={[0, y, 0]}
+    />
+  );
 }

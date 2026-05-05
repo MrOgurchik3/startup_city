@@ -1,10 +1,10 @@
-import { useMemo, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import type { Startup } from '../../types';
 import {
   cityBuildingBaseY,
-  cityBuildingHeight,
+  cityBuildingRenderedHeight,
   cityBuildingWidth,
   citySpireHeight,
 } from '../../lib/encoding';
@@ -14,6 +14,8 @@ interface Props {
   startup: Startup | null;
   positions: Map<string, [number, number]>;
 }
+
+const noopRaycast: THREE.Mesh['raycast'] = () => {};
 
 export function SelectionRing({ startup, positions }: Props) {
   const ringRef = useRef<THREE.Mesh | null>(null);
@@ -60,7 +62,8 @@ export function SelectionRing({ startup, positions }: Props) {
     const [x, z] = pos;
     const w = cityBuildingWidth(startup);
     const by = cityBuildingBaseY(startup);
-    const totalH = cityBuildingHeight(startup) + citySpireHeight(startup) + 1.5;
+    const towerH = cityBuildingRenderedHeight(startup);
+    const totalH = towerH + citySpireHeight(startup) + 1.5;
     const t = state.clock.getElapsedTime();
     const pulse = 1 + Math.sin(t * 2) * 0.08;
     if (ringRef.current) {
@@ -72,6 +75,11 @@ export function SelectionRing({ startup, positions }: Props) {
       beamRef.current.scale.set(w * 1.4, totalH, w * 1.4);
     }
   });
+
+  useLayoutEffect(() => {
+    if (ringRef.current) ringRef.current.raycast = noopRaycast;
+    if (beamRef.current) beamRef.current.raycast = noopRaycast;
+  }, [startup]);
 
   if (!startup) return null;
   return (

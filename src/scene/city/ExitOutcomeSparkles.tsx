@@ -1,8 +1,12 @@
-import { useMemo, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Startup } from '../../types';
-import { cityBuildingBaseY, cityBuildingHeight, citySpireHeight } from '../../lib/encoding';
+import {
+  cityBuildingBaseY,
+  cityBuildingRenderedHeight,
+  citySpireHeight,
+} from '../../lib/encoding';
 import { CITY_PALETTE } from '../../theme/cityPalette';
 
 interface Props {
@@ -13,6 +17,8 @@ interface Props {
 
 const SPARKS = 22;
 const CYCLE = 2.8;
+
+const noopRaycast: THREE.Object3D['raycast'] = () => {};
 
 function hashSeed(id: string, salt: string): number {
   let h = 2166136261 >>> 0;
@@ -87,6 +93,10 @@ function ExitSpark({
     [startupId]
   );
 
+  useLayoutEffect(() => {
+    if (ref.current) ref.current.raycast = noopRaycast;
+  }, []);
+
   useFrame((state) => {
     const pts = ref.current;
     if (!pts) return;
@@ -124,7 +134,8 @@ export function ExitOutcomeSparkles({ startups, positions, cap = 40 }: Props) {
         const pos = positions.get(s.id);
         if (!pos) return null;
         const [x, z] = pos;
-        const baseY = cityBuildingBaseY(s) + cityBuildingHeight(s) + citySpireHeight(s) + 0.12;
+        const baseY =
+          cityBuildingBaseY(s) + cityBuildingRenderedHeight(s) + citySpireHeight(s) + 0.12;
         return (
           <group key={`exit-${s.id}`} position={[x, baseY, z]}>
             <ExitSpark startupId={s.id} outcome={outcome} />

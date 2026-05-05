@@ -45,68 +45,81 @@ export function applyFilters(
 ): Startup[] {
   const [winStart, winEnd] = periodWindow(filters.timePeriod, now);
   return startups.filter((s) => {
+    const isStartup = s.entityType === 'Startup';
+
     if (!arrIncludes(filters.vertical, s.vertical)) return false;
     if (!arrIncludes(filters.subSector, s.subSector)) return false;
-    if (!arrIncludes(filters.stage, s.stage)) return false;
-    if (!arrIncludes(filters.geography, s.region)) return false;
-    if (!arrIncludes(filters.companySize, s.companySize)) return false;
-    if (!arrIncludes(filters.outcomeStatus, s.outcomeStatus)) return false;
-    if (!arrIncludes(filters.fundraisingStatus, s.fundraisingStatus))
-      return false;
+
+    if (isStartup) {
+      if (!arrIncludes(filters.stage, s.stage)) return false;
+      if (!arrIncludes(filters.geography, s.region)) return false;
+      if (!arrIncludes(filters.companySize, s.companySize)) return false;
+      if (!arrIncludes(filters.outcomeStatus, s.outcomeStatus)) return false;
+      if (!arrIncludes(filters.fundraisingStatus, s.fundraisingStatus))
+        return false;
+    }
 
     if (filters.investorName.length > 0) {
-      const has = s.investorIds.some((id) =>
-        filters.investorName.includes(id)
-      );
-      if (!has) return false;
+      const matched = isStartup
+        ? s.investorIds.some((id) => filters.investorName.includes(id))
+        : filters.investorName.includes(s.id);
+      if (!matched) return false;
     }
 
     if (filters.investorType.length > 0) {
-      const has = s.investorIds.some((id) => {
-        const inv = INVESTOR_BY_ID[id];
-        return inv && filters.investorType.includes(inv.type);
-      });
-      if (!has) return false;
+      let ok = false;
+      if (isStartup) {
+        ok = s.investorIds.some((id) => {
+          const inv = INVESTOR_BY_ID[id];
+          return inv != null && filters.investorType.includes(inv.type);
+        });
+      } else {
+        const inv = INVESTOR_BY_ID[s.id];
+        ok = inv != null && filters.investorType.includes(inv.type);
+      }
+      if (!ok) return false;
     }
 
-    if (filters.education.length > 0) {
-      const has = s.founders.some((f) =>
-        filters.education.includes(f.education)
-      );
-      if (!has) return false;
-    }
+    if (isStartup) {
+      if (filters.education.length > 0) {
+        const has = s.founders.some((f) =>
+          filters.education.includes(f.education)
+        );
+        if (!has) return false;
+      }
 
-    if (filters.founderBackground.length > 0) {
-      const has = s.founders.some((f) =>
-        filters.founderBackground.includes(f.background)
-      );
-      if (!has) return false;
-    }
+      if (filters.founderBackground.length > 0) {
+        const has = s.founders.some((f) =>
+          filters.founderBackground.includes(f.background)
+        );
+        if (!has) return false;
+      }
 
-    if (filters.university.length > 0) {
-      const has = s.founders.some((f) =>
-        filters.university.includes(f.university)
-      );
-      if (!has) return false;
-    }
+      if (filters.university.length > 0) {
+        const has = s.founders.some((f) =>
+          filters.university.includes(f.university)
+        );
+        if (!has) return false;
+      }
 
-    if (filters.repeatFounder !== 'any') {
-      const want = filters.repeatFounder === 'yes';
-      const has = s.founders.some((f) => f.repeatFounder === want);
-      if (!has) return false;
-    }
+      if (filters.repeatFounder !== 'any') {
+        const want = filters.repeatFounder === 'yes';
+        const has = s.founders.some((f) => f.repeatFounder === want);
+        if (!has) return false;
+      }
 
-    if (filters.priorExit !== 'any') {
-      const want = filters.priorExit === 'yes';
-      const has = s.founders.some((f) => f.priorExit === want);
-      if (!has) return false;
-    }
+      if (filters.priorExit !== 'any') {
+        const want = filters.priorExit === 'yes';
+        const has = s.founders.some((f) => f.priorExit === want);
+        if (!has) return false;
+      }
 
-    // Time-period: include startups whose latest round falls inside the window
-    // unless the slicer is the default LTM (which is the natural state).
-    if (filters.timePeriod !== 'LTM') {
-      const last = new Date(s.lastRoundDate);
-      if (last < winStart || last > winEnd) return false;
+      // Time-period: include startups whose latest round falls inside the window
+      // unless the slicer is the default LTM (which is the natural state).
+      if (filters.timePeriod !== 'LTM') {
+        const last = new Date(s.lastRoundDate);
+        if (last < winStart || last > winEnd) return false;
+      }
     }
 
     return true;

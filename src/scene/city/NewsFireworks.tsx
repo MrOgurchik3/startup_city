@@ -1,10 +1,8 @@
-import { useMemo, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { ThreeEvent } from '@react-three/fiber';
 import type { NewsKind, Startup } from '../../types';
 import { cityBuildingBaseY, cityBuildingHeight, citySpireHeight } from '../../lib/encoding';
-import { useAppStore } from '../../store/useAppStore';
 import { CITY_PALETTE } from '../../theme/cityPalette';
 
 interface Props {
@@ -69,7 +67,10 @@ function burstGeometry(kind: NewsKind, seed: number): THREE.BufferGeometry {
   return geom;
 }
 
+const noopRaycast: THREE.Object3D['raycast'] = () => {};
+
 function NewsBurst({ startup, eventKind }: { startup: Startup; eventKind: NewsKind }) {
+  const pickRef = useRef<THREE.Mesh>(null);
   const pointsRef = useRef<THREE.Points>(null);
   const beamRef = useRef<THREE.Mesh>(null);
   const geomSeed = useMemo(
@@ -105,7 +106,6 @@ function NewsBurst({ startup, eventKind }: { startup: Startup; eventKind: NewsKi
       }),
     [beamColor]
   );
-  const selectStartup = useAppStore((s) => s.selectStartup);
   const phaseOffset = useMemo(
     () => (hashSeed(startup.id, 'phase') % 10000) / 10000,
     [startup.id]
@@ -133,21 +133,15 @@ function NewsBurst({ startup, eventKind }: { startup: Startup; eventKind: NewsKi
     }
   });
 
+  useLayoutEffect(() => {
+    if (pickRef.current) pickRef.current.raycast = noopRaycast;
+    if (beamRef.current) beamRef.current.raycast = noopRaycast;
+    if (pointsRef.current) pointsRef.current.raycast = noopRaycast;
+  }, []);
+
   return (
     <group>
-      <mesh
-        position={[0, 0.15, 0]}
-        onClick={(e: ThreeEvent<MouseEvent>) => {
-          e.stopPropagation();
-          selectStartup(startup.id);
-        }}
-        onPointerOver={() => {
-          document.body.style.cursor = 'pointer';
-        }}
-        onPointerOut={() => {
-          document.body.style.cursor = '';
-        }}
-      >
+      <mesh ref={pickRef} position={[0, 0.15, 0]}>
         <cylinderGeometry args={[0.45, 0.45, 0.5, 12]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>

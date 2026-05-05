@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import type { Startup } from '../../types';
@@ -68,6 +68,8 @@ void main() {
   gl_FragColor = vec4(col, a);
 }
 `;
+
+const noopRaycast: THREE.Mesh['raycast'] = () => {};
 
 export function GlowBase({ startups, positions }: GlowBaseProps) {
   const meshRef = useRef<THREE.InstancedMesh | null>(null);
@@ -154,6 +156,12 @@ export function GlowBase({ startups, positions }: GlowBaseProps) {
     // eslint-disable-next-line react-hooks/immutability
     material.uniforms.uTime.value = clock.getElapsedTime();
   });
+
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    mesh.raycast = noopRaycast;
+  }, []);
 
   if (startups.length === 0) return null;
 

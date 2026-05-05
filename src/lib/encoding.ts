@@ -2,6 +2,15 @@ import { scaleLinear, scaleLog, scaleSqrt } from 'd3-scale';
 import type { InvestorFirmProfile, RegionAggregate, RegionId, Stage, Startup } from '../types';
 import { stageColorHex, SELECTED_COLOR } from '../data/stages';
 import { REGION_IDS } from '../data/regions';
+import {
+  ARCHETYPES,
+  archetypeScaleY,
+  cityArchetypeIndex,
+  CITY_SHELL_ROOF_ATTACHMENT_LOCAL_Y,
+} from '../scene/city/cityArchetypes';
+
+/** Footprint scale must match [`Buildings.tsx`](Buildings.tsx) instancing. */
+const CITY_BUILDING_THICKNESS_MUL = 1.32;
 
 // Single source of truth for KPI -> visual mapping.
 // All inputs assumed to be in their natural units (£, monthly visitors, etc.).
@@ -81,6 +90,19 @@ export function cityBuildingHeight(s: Startup): number {
   return buildingHeight(s);
 }
 
+/** Matches instanced tower height in Buildings.tsx (`h * scaleMul[1]`). */
+export function cityBuildingRenderedHeight(s: Startup): number {
+  return cityBuildingHeight(s) * archetypeScaleY(s);
+}
+
+/** World Y where the crown meets the skyline (excluding shell pinnacle garnish). */
+export function cityBuildingRoofWorldY(s: Startup): number {
+  const rh = cityBuildingRenderedHeight(s);
+  return (
+    cityBuildingBaseY(s) + rh * CITY_SHELL_ROOF_ATTACHMENT_LOCAL_Y
+  );
+}
+
 /** City footprint width: startups = ARR; investors = LTM deal count. */
 export function cityBuildingWidth(s: Startup): number {
   if (hasInvestorEncoding(s)) {
@@ -89,12 +111,38 @@ export function cityBuildingWidth(s: Startup): number {
   return buildingWidth(s);
 }
 
+/** Half-extents in xz for instanced towers (matches shader mesh scale). */
+export function cityBuildingFootprintHalfXZ(s: Startup): { hx: number; hz: number } {
+  const w = cityBuildingWidth(s);
+  const idx = cityArchetypeIndex(s);
+  const [mx, , mz] = ARCHETYPES[idx].scaleMul;
+  return {
+    hx: (w * mx * CITY_BUILDING_THICKNESS_MUL) / 2,
+    hz: (w * mz * CITY_BUILDING_THICKNESS_MUL) / 2,
+  };
+}
+
 /** Spire: startups = val/raised multiple (unicorns get rainbow material); investors = portfolio unicorn rate. */
 export function citySpireHeight(s: Startup): number {
   if (hasInvestorEncoding(s)) {
     return investorSpireScale(s.investorFirmProfile.portfolioUnicornRate);
   }
   return spireHeight(s);
+}
+
+/** Pick volume from slab base to crown + partial spire (for ray tests in front-to-back order). */
+export function cityBuildingPickAabb(
+  s: Startup,
+  x: number,
+  z: number
+): { min: [number, number, number]; max: [number, number, number] } {
+  const baseY = cityBuildingBaseY(s);
+  const roofY = cityBuildingRoofWorldY(s) + citySpireHeight(s) * 0.55;
+  const { hx, hz } = cityBuildingFootprintHalfXZ(s);
+  return {
+    min: [x - hx, baseY, z - hz],
+    max: [x + hx, roofY, z + hz],
+  };
 }
 
 export function cityWindowDensity(s: Startup): number {

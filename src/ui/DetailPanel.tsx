@@ -270,14 +270,14 @@ export function DetailPanel() {
   const setRegion = useAppStore((s) => s.setRegion);
 
   const startup = useMemo(() => {
-    if (selection?.kind !== 'startup') return null;
+    if (selection?.kind !== 'entity') return null;
     const { startups } = getDataset();
     return startups.find((s) => s.id === selection.id) ?? null;
   }, [selection]);
 
   if (!selection) return null;
 
-  if (selection.kind === 'startup' && startup) {
+  if (selection.kind === 'entity' && startup) {
     return <StartupDetail s={startup} />;
   }
 

@@ -15,6 +15,8 @@ interface CityStreetsProps {
   blocks: StreetBlock[];
 }
 
+const noopRaycast: THREE.InstancedMesh['raycast'] = () => {};
+
 const ROAD_W = 0.22;
 const ROAD_Y = 0.048;
 
@@ -45,6 +47,12 @@ export function CityStreets({ blocks }: CityStreetsProps) {
     m.polygonOffsetFactor = -1;
     m.polygonOffsetUnits = -1;
     return m;
+  }, []);
+
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    mesh.raycast = noopRaycast;
   }, []);
 
   useLayoutEffect(() => {

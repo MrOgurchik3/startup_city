@@ -1,5 +1,9 @@
+import { useLayoutEffect, useRef } from 'react';
+import * as THREE from 'three';
 import { CitySubGrid } from './CitySubGrid';
 import { CITY_PALETTE, mixHex } from '../../theme/cityPalette';
+
+const noopRaycast: THREE.Mesh['raycast'] = () => {};
 
 export interface CitySubGridSpec {
   cx: number;
@@ -23,11 +27,21 @@ const LOT_SLAB_THICK = 0.09;
  * City floor: same dark ocean / lot tones as the global map infinite plane + sub-grids.
  */
 export function CityGround({ gridExtent, subGrids }: CityGroundProps) {
+  const planeRef = useRef<THREE.Mesh | null>(null);
+  const slabRef = useRef<THREE.Mesh | null>(null);
+  useLayoutEffect(() => {
+    if (planeRef.current) planeRef.current.raycast = noopRaycast;
+    if (slabRef.current) slabRef.current.raycast = noopRaycast;
+  }, []);
   const halfT = LOT_SLAB_THICK / 2;
   const span = Math.max(gridExtent * 1.14, 2800);
   return (
     <group>
-      <mesh rotation-x={-Math.PI / 2} position={[0, -LOT_SLAB_THICK - 0.004, 0]}>
+      <mesh
+        ref={planeRef}
+        rotation-x={-Math.PI / 2}
+        position={[0, -LOT_SLAB_THICK - 0.004, 0]}
+      >
         <planeGeometry args={[span, span]} />
         <meshBasicMaterial
           color={CITY_PALETTE.mapOceanFloor}
@@ -36,7 +50,7 @@ export function CityGround({ gridExtent, subGrids }: CityGroundProps) {
         />
       </mesh>
 
-      <mesh position={[0, -halfT, 0]}>
+      <mesh ref={slabRef} position={[0, -halfT, 0]}>
         <boxGeometry args={[gridExtent, LOT_SLAB_THICK, gridExtent]} />
         <meshBasicMaterial
           color={CITY_PALETTE.mapOceanFloor}

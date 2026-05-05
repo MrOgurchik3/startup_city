@@ -4,14 +4,14 @@ import type { FilterState, Mode, RegionId } from '../types';
 export type GlobalNavMode = 'orbit' | 'pan';
 
 export interface HoverInfo {
-  kind: 'startup' | 'region';
+  kind: 'entity' | 'region';
   id: string;
   x: number;
   y: number;
 }
 
 export interface SelectionInfo {
-  kind: 'startup' | 'region';
+  kind: 'entity' | 'region';
   id: string;
 }
 
@@ -27,6 +27,7 @@ export interface AppState {
 
   setMode: (m: Mode) => void;
   setRegion: (r: RegionId) => void;
+  selectEntity: (id: string) => void;
   selectStartup: (id: string) => void;
   selectRegion: (id: RegionId) => void;
   clearSelection: () => void;
@@ -67,7 +68,8 @@ export const useAppStore = create<AppState>((set) => ({
 
   setMode: (m) => set({ mode: m, selection: null, globalNavMode: 'orbit' }),
   setRegion: (r) => set({ region: r }),
-  selectStartup: (id) => set({ selection: { kind: 'startup', id } }),
+  selectEntity: (id) => set({ selection: { kind: 'entity', id } }),
+  selectStartup: (id) => set({ selection: { kind: 'entity', id } }),
   selectRegion: (id) => set({ selection: { kind: 'region', id } }),
   clearSelection: () => set({ selection: null }),
   setHover: (h) => set({ hover: h }),

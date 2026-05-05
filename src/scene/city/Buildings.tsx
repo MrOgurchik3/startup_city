@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import type { ThreeEvent } from '@react-three/fiber';
 import type { Startup } from '../../types';
 import {
   cityBuildingBaseY,
@@ -22,6 +21,8 @@ import {
   INVESTOR_VC_INDEX,
   type ArchetypeMeta,
 } from './cityArchetypes';
+
+const noopRaycastInstanced: THREE.InstancedMesh['raycast'] = () => {};
 
 interface BuildingsProps {
   startups: Startup[];
@@ -48,8 +49,6 @@ function ShapeGroup({
 }) {
   const meshRef = useRef<THREE.InstancedMesh | null>(null);
   const podiumRef = useRef<THREE.InstancedMesh | null>(null);
-  const setHover = useAppStore((s) => s.setHover);
-  const selectStartup = useAppStore((s) => s.selectStartup);
   const selection = useAppStore((s) => s.selection);
 
   const geometry = useMemo(() => archetype.builder(), [archetype]);
@@ -77,8 +76,14 @@ function ShapeGroup({
   useLayoutEffect(() => {
     const p = podiumRef.current;
     if (!p || !archetype.isInvestor) return;
-    p.raycast = () => {};
+    p.raycast = noopRaycastInstanced;
   }, [archetype.isInvestor]);
+
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    mesh.raycast = noopRaycastInstanced;
+  }, [archetype]);
 
   const buffers = useMemo(() => {
     const count = startups.length;
@@ -102,20 +107,14 @@ function ShapeGroup({
     const tmpPos = new THREE.Vector3();
     const tmpQuat = new THREE.Quaternion();
     const tmpScl = new THREE.Vector3();
-    // Stable per-startup yaw (4 cardinal rotations) so the city reads less
-    // grid-locked without breaking street alignment.
-    const yawForId = (id: string): number => {
-      let h = 0;
-      for (let i = 0; i < id.length; i += 1) h = (h * 31 + id.charCodeAt(i)) | 0;
-      return ((h >>> 0) % 4) * (Math.PI / 2);
-    };
     const startupFlopped = new THREE.Color(CITY_PALETTE.startupFlopped);
     const invVc = new THREE.Color(CITY_PALETTE.investorVc);
     const invAngel = new THREE.Color(CITY_PALETTE.investorAngel);
     const invOther = new THREE.Color(CITY_PALETTE.investorOther);
     const tmpColor = new THREE.Color();
-    const sel = selection?.kind === 'startup' ? selection.id : null;
+    const sel = selection?.kind === 'entity' ? selection.id : null;
     const [mx, my, mz] = archetype.scaleMul;
+    const thicknessMul = 1.32;
 
     startups.forEach((s, i) => {
       const pos = positions.get(s.id);
@@ -126,8 +125,8 @@ function ShapeGroup({
       const baseY = cityBuildingBaseY(s);
 
       tmpPos.set(x, baseY, z);
-      tmpQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawForId(s.id));
-      tmpScl.set(w * mx, h * my, w * mz);
+      tmpQuat.identity();
+      tmpScl.set(w * mx * thicknessMul, h * my, w * mz * thicknessMul);
       matrix.compose(tmpPos, tmpQuat, tmpScl);
       mesh.setMatrixAt(i, matrix);
 
@@ -173,27 +172,6 @@ function ShapeGroup({
     geom.setAttribute('instanceOutcomeAccent', new THREE.InstancedBufferAttribute(buffers.outcomeAccent, 1));
   }, [startups, positions, buffers, selection, archetype]);
 
-  const handlePointerOver = (e: ThreeEvent<PointerEvent>) => {
-    if (e.instanceId == null) return;
-    e.stopPropagation();
-    const s = startups[e.instanceId];
-    if (!s) return;
-    setHover({ kind: 'startup', id: s.id, x: e.clientX, y: e.clientY });
-    document.body.style.cursor = 'pointer';
-  };
-
-  const handlePointerOut = () => {
-    setHover(null);
-    document.body.style.cursor = '';
-  };
-
-  const handleClick = (e: ThreeEvent<MouseEvent>) => {
-    if (e.instanceId == null) return;
-    e.stopPropagation();
-    const s = startups[e.instanceId];
-    if (s) selectStartup(s.id);
-  };
-
   if (startups.length === 0) return null;
 
   return (
@@ -208,9 +186,6 @@ function ShapeGroup({
       <instancedMesh
         ref={meshRef}
         args={[geometry, material, startups.length]}
-        onPointerOver={handlePointerOver}
-        onPointerOut={handlePointerOut}
-        onClick={handleClick}
         frustumCulled={false}
       />
     </group>

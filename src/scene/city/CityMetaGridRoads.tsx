@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { CITY_PALETTE } from '../../theme/cityPalette';
+
+const noopRaycast: THREE.Mesh['raycast'] = () => {};
 
 const ROAD_Y = 0.048;
 
@@ -50,6 +53,17 @@ export function CityMetaGridRoads({
   roadW,
   withPerimeter = true,
 }: CityMetaGridRoadsProps) {
+  const groupRef = useRef<THREE.Group>(null);
+
+  useLayoutEffect(() => {
+    const g = groupRef.current;
+    if (!g) return;
+    g.traverse((obj) => {
+      const m = obj as THREE.Mesh;
+      if (m.isMesh) m.raycast = noopRaycast;
+    });
+  }, [metaCols, metaRows, metaCellW, metaCellD, roadW, withPerimeter]);
+
   if (metaCols < 1 || metaRows < 1) return null;
 
   const totalW = metaCols * metaCellW;
@@ -108,7 +122,7 @@ export function CityMetaGridRoads({
   }
 
   return (
-    <group>
+    <group ref={groupRef}>
       {nsRoads}
       {ewRoads}
       {perimeter}

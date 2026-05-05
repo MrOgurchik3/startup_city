@@ -68,15 +68,27 @@ export function Legend() {
             <EncodingRow channel="Building shape" kpi="Vertical / entity type" />
             <EncodingRow channel="Building height" kpi="Total raised · Avg cheque (inv)" />
             <EncodingRow channel="Building width" kpi="ARR · Deals LTM (inv)" />
-            <EncodingRow channel="Lot ring" kpi="Stage" />
+            <EncodingRow channel="Lot ring" kpi="Stage hue + fundraising pulse (likely raising / closed)" />
             <EncodingRow channel="Roof spire" kpi="Val ÷ raised · Unicorn rate (inv)" />
-            <EncodingRow channel="Roof lamp" kpi="Visitors × ARR" />
+            <EncodingRow channel="Façade windows" kpi="Fill ≈ visitor traffic · Brightness ≈ ARR (lights-on)" />
+            <EncodingRow channel="Vertical beam" kpi="Recent news headline for that tower (startup or investor)" />
             <EncodingRow channel="News bubble" kpi="Last-7d event" />
+            <EncodingRow channel="Arcs" kpi="Funding graph (hover/click)" />
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <div className="legend-enc" style={{ marginBottom: 6 }}>
+              <EncodingRow channel="Hover" kpi="Tooltip + arcs for that tower" />
+              <EncodingRow channel="Click" kpi="Pin selection + open details (startup or investor)" />
+              <EncodingRow channel="External hub" kpi="Arcs for investors outside this region" />
+            </div>
           </div>
           <div className="legend-stage-row">
-            <Swatch hex={STAGE_COLORS.pre} title="Pre-Seed / Seed" /> pre
+            <Swatch hex={STAGE_COLORS.notraised} title="Not Raised" /> NR
+            <Swatch hex={STAGE_COLORS.pre} title="Pre-Pre / Pre-Seed" /> pre
+            <Swatch hex={STAGE_COLORS.angelround} title="Angel Round" /> angel
+            <Swatch hex={STAGE_COLORS.seed} title="Seed" /> seed
             <Swatch hex={STAGE_COLORS.growth} title="Series A" /> A
-            <Swatch hex={STAGE_COLORS.scale} title="Series B / Bridge" /> B
+            <Swatch hex={STAGE_COLORS.scale} title="Series B / Bridge" /> B/C
             <Swatch hex={STAGE_COLORS.late} title="Series C+" /> C+
           </div>
         </div>

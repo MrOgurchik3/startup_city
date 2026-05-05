@@ -10,14 +10,24 @@ export type RegionId =
   | 'IN';
 
 export type Stage =
+  | 'Not Raised'
+  | 'Pre-Pre Seed'
   | 'Pre-Seed'
+  | 'Angel Round'
   | 'Seed'
   | 'Series A'
   | 'Series B'
   | 'Bridge'
   | 'Series C+';
 
-export type StageBucket = 'pre' | 'growth' | 'scale' | 'late';
+export type StageBucket =
+  | 'notraised'
+  | 'pre'
+  | 'angelround'
+  | 'seed'
+  | 'growth'
+  | 'scale'
+  | 'late';
 
 export type EntityType = 'Startup' | 'VC' | 'Angel' | 'Other';
 
